@@ -19,14 +19,17 @@ def accuracy(output, target, topk=(1,)):
 	batch_size = target.size(0)
 
 	_, pred = output.topk(maxk, 1, True, True)
+
 	pred = pred.t()
+
 	correct = pred.eq(target.view(1, -1).expand_as(pred))
 
 	res = []
 	for k in topk:
 		correct_k = correct[:k].view(-1).float().sum(0)
 		res.append(correct_k)
-	return res
+
+	return pred.t(), res
 
 
 
@@ -48,7 +51,7 @@ class cars_test(Dataset):
 		for i in range(len(self.all["annotations"][0])):
 
 			self.files.append("./cars_test/" + self.all["annotations"][0][i][-1][0] ) #this as well
-			self.labels.append(self.all["annotations"][0][i][-2][0][0] - 1.0)
+			self.labels.append(self.all["annotations"][0][i][-2][0][0] - 1.0) #please note labels are from 0 to 195 not 1 to 196
 
 			self.bbox_x1.append(self.all["annotations"][0][i][0][0][0])
 			self.bbox_y1.append(self.all["annotations"][0][i][1][0][0])
@@ -74,7 +77,7 @@ class cars_test(Dataset):
 
 #data loading
 test_data = cars_test()
-test_loader = DataLoader(test_data, batch_size = batch_size, num_workers = 4)
+test_loader = DataLoader(test_data, batch_size = 32, num_workers = 4)
 test_data_len = len(test_data)
 
 #model initialization and multi GPU
@@ -94,6 +97,7 @@ model = model.to(device)
 print ("testing started ")
 
 #testing
+result = ""
 model.eval()
 acc = 0.0
 for i, (inputs,labels, files) in enumerate(test_loader):
@@ -104,9 +108,16 @@ for i, (inputs,labels, files) in enumerate(test_loader):
 	with torch.no_grad():
 		predictions = model(inputs)
 
-	acc1, = accuracy(predictions, labels)
-	acc += (acc1 )
+	pred, acc1, = accuracy(predictions, labels)
+	acc += (acc1[0] )
+
+	for j in range(len(files)):
+		result += files[j] + ","
+		result += str(int(pred[j])) + "\n"
 		
 acc = acc / float(test_data_len)
 print('Top1 Accuracy:{}'.format(acc))
 
+f = open("result.csv", 'w')
+f.write(result)
+f.close()
